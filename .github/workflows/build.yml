@@ -1,14 +1,14 @@
-name: Flutter Build APK
+name: Flutter Build & Release APK
 
-# Memicu build otomatis setiap kali ada push ke branch 'main'
+# Memicu build otomatis setiap kali ada push tag versi baru (contoh: v1.0.0)
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build & Release Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -40,9 +40,16 @@ jobs:
             --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
             --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
 
-      # 6. Unggah APK agar bisa diunduh oleh Anda
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      # 6. Ganti nama file APK agar rapi dengan format versi
+      - name: Rename APK File
+        run: mv build/app/outputs/flutter-apk/app-release.apk Vaulticor-${{ github.ref_name }}.apk
+
+      # 7. Membuat GitHub Release otomatis dan mengunggah berkas APK
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Vaulticor-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          files: Vaulticor-${{ github.ref_name }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
