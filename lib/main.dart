@@ -118,13 +118,13 @@ class _LoginPageState extends State<LoginPage> {
     final savedKeyHex = prefs.getString('bio_key');
 
     if (savedEmail != null && savedKeyHex != null) {
-      final didAuthenticate = await _localAuth.authenticate(
-        localizedReason: 'Pindai sidik jari atau wajah untuk membuka Vaulticor',
-      );
+      try {
+        final didAuthenticate = await _localAuth.authenticate(
+          localizedReason: 'Pindai sidik jari atau wajah untuk membuka Vaulticor',
+        );
 
-      if (didAuthenticate) {
-        setState(() => _isLoading = true);
-        try {
+        if (didAuthenticate) {
+          setState(() => _isLoading = true);
           final List<int> dkBytes = base64.decode(savedKeyHex);
           if (mounted) {
             _showToast('Buka brankas biometrik sukses!', isError: false);
@@ -135,12 +135,14 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           }
-        } catch (e) {
-          _showToast('Gagal memuat kunci biometrik: $e');
-        } finally {
-          setState(() => _isLoading = false);
         }
+      } catch (e) {
+        _showToast('Gagal autentikasi biometrik: $e');
+      } finally {
+        setState(() => _isLoading = false);
       }
+    } else {
+      _showToast('Aktifkan biometrik dengan masuk menggunakan Password Master terlebih dahulu.', isError: true);
     }
   }
 
@@ -251,7 +253,12 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
     } catch (e) {
-      _showToast('Autentikasi Gagal: $e');
+      final errorMsg = e.toString();
+      if (errorMsg.contains('SecretBox') || errorMsg.contains('decryption') || errorMsg.contains('MAC')) {
+        _showToast('Password Master yang Anda masukkan salah!');
+      } else {
+        _showToast('Autentikasi Gagal: $e');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -323,7 +330,7 @@ class _LoginPageState extends State<LoginPage> {
                                 minimumSize: const Size.fromHeight(50),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
-                              child: Text(_isRegisterMode ? 'Daftar Vault' : 'Masuk / Sync',
+                              child: Text(_isRegisterMode ? 'Daftar Vault' : 'Masuk',
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                       if (!_isRegisterMode && _canCheckBiometrics) ...[
@@ -343,7 +350,7 @@ class _LoginPageState extends State<LoginPage> {
                         },
                         child: Text(_isRegisterMode
                             ? 'Sudah punya akun? Masuk'
-                            : 'Belum punya akun? Buat brankas baru'),
+                            : 'Belum punya akun? Daftar'),
                       ),
                     ],
                   ),
@@ -606,8 +613,6 @@ class _DashboardPageState extends State<DashboardPage> {
             tooltip: 'Kunci Vault',
             onPressed: () async {
               await supabase.auth.signOut();
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('bio_key'); // hapus cache biometrik
               if (mounted) {
                 _showToast('Brankas terkunci!', isError: false);
                 Navigator.pushReplacement(

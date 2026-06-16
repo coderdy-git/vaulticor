@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:vaultify_app/main.dart';
+import 'package:Vaulticor/main.dart';
 
 void main() {
   testWidgets('Counter value placeholder test', (WidgetTester tester) async {

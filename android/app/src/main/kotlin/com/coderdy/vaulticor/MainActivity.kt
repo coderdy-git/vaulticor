@@ -1,4 +1,4 @@
-package com.vaultify.vaultify_app
+package com.coderdy.vaulticor
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
