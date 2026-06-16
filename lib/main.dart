@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'crypto_service.dart';
 
 void main() async {
@@ -84,17 +86,76 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _cryptoService = CryptoService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
   bool _isLoading = false;
   bool _isRegisterMode = false;
+  bool _canCheckBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final isAvailable = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
+      setState(() => _canCheckBiometrics = isAvailable);
+      if (isAvailable) {
+        _autoBiometricLogin();
+      }
+    } catch (_) {}
+  }
+
+  // Auto Login menggunakan Biometrik jika kunci tersimpan
+  Future<void> _autoBiometricLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('bio_email');
+    final savedKeyHex = prefs.getString('bio_key');
+
+    if (savedEmail != null && savedKeyHex != null) {
+      final didAuthenticate = await _localAuth.authenticate(
+        localizedReason: 'Pindai sidik jari atau wajah untuk membuka Vaulticor',
+      );
+
+      if (didAuthenticate) {
+        setState(() => _isLoading = true);
+        try {
+          final List<int> dkBytes = base64.decode(savedKeyHex);
+          if (mounted) {
+            _showToast('Buka brankas biometrik sukses!', isError: false);
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardPage(dataKey: dkBytes),
+              ),
+            );
+          }
+        } catch (e) {
+          _showToast('Gagal memuat kunci biometrik: $e');
+        } finally {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  void _showToast(String msg, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red[800] : Colors.green[800],
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   Future<void> _handleAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email valid & Password minimal 6 karakter')),
-      );
+      _showToast('Email valid & Password minimal 6 karakter');
       return;
     }
 
@@ -102,77 +163,61 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       if (_isRegisterMode) {
-        // --- PROSES DAFTAR (REGISTER) ---
-        // 1. Generate client salt acak (16 bytes aman)
+        // --- REGISTER MODE ---
         final saltBytes = List<int>.generate(16, (i) => (i + DateTime.now().millisecond) % 256);
         final saltHex = base64.encode(saltBytes);
 
-        // 2. Turunkan Master Key (MK) & Data Key (DK)
         final mkBytes = await _cryptoService.deriveKey(password, saltBytes);
         final dkBytes = List<int>.generate(32, (i) => (i * 3 + DateTime.now().microsecond) % 256);
+        final encDK = await _cryptoService.encrypt(base64.encode(dkBytes), mkBytes);
 
-        // 3. Enkripsi Data Key dengan Master Key
-        final encDK = await _cryptoService.encrypt(
-            base64.encode(dkBytes), mkBytes);
-
-        // 4. Hitung Login Hash untuk password autentikasi server
-        final loginHashBytes = await _cryptoService.deriveKey(
-            base64.encode(mkBytes), saltBytes);
+        final loginHashBytes = await _cryptoService.deriveKey(base64.encode(mkBytes), saltBytes);
         final loginHash = base64.encode(loginHashBytes);
 
-        // 5. Daftarkan akun ke Supabase Auth
         final authResponse = await supabase.auth.signUp(
           email: email,
           password: loginHash,
         );
 
         if (authResponse.user != null) {
-          // 6. Buat baris profil di tabel public.profiles untuk menyimpan kunci terenkripsi
           await supabase.from('profiles').insert({
             'id': authResponse.user!.id,
             'client_salt': saltHex,
             'encrypted_data_key': encDK['ciphertext'],
             'iv_dk': encDK['nonce'],
-            'mac_dk': encDK['mac'], // Menyimpan nilai MAC asli
+            'mac_dk': encDK['mac'],
             'encrypted_data_key_recovery': 'dummy_recovery_placeholder',
             'iv_dk_recovery': 'dummy_recovery_placeholder',
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Akun sukses dibuat! Silakan login.')),
-          );
+          _showToast('Akun sukses dibuat! Silakan login.', isError: false);
           setState(() => _isRegisterMode = false);
         }
       } else {
-        // --- PROSES MASUK (LOGIN) ---
-        // 1. Ambil client_salt & mac_dk dari server terlebih dahulu
+        // --- LOGIN MODE ---
         final List<dynamic> profiles = await supabase
             .from('profiles')
             .select('client_salt, encrypted_data_key, iv_dk, mac_dk')
             .eq('id', (await _getUserIdByEmail(email)) ?? '');
 
         if (profiles.isEmpty) {
-          throw Exception("Pengguna tidak ditemukan.");
+          throw Exception("Pengguna tidak terdaftar.");
         }
 
         final profile = profiles.first;
         final saltHex = profile['client_salt'] as String;
         final saltBytes = base64.decode(saltHex);
 
-        // 2. Hitung Master Key (MK) & Login Hash secara lokal
         final mkBytes = await _cryptoService.deriveKey(password, saltBytes);
-        final loginHashBytes = await _cryptoService.deriveKey(
-            base64.encode(mkBytes), saltBytes);
+        final loginHashBytes = await _cryptoService.deriveKey(base64.encode(mkBytes), saltBytes);
         final loginHash = base64.encode(loginHashBytes);
 
-        // 3. Login ke Supabase Auth
         final authResponse = await supabase.auth.signInWithPassword(
           email: email,
           password: loginHash,
         );
 
         if (authResponse.user != null) {
-          // 4. Dekripsi Data Key (DK) lokal menggunakan Master Key
           final encDKCipher = profile['encrypted_data_key'] as String;
           final encDKIv = profile['iv_dk'] as String;
           final encDKMac = profile['mac_dk'] as String;
@@ -180,12 +225,18 @@ class _LoginPageState extends State<LoginPage> {
           final decryptedDKBase64 = await _cryptoService.decrypt(
             ciphertext: encDKCipher,
             nonce: encDKIv,
-            mac: encDKMac, // Menggunakan MAC asli
+            mac: encDKMac,
             keyBytes: mkBytes,
           );
           final dkBytes = base64.decode(decryptedDKBase64);
 
+          // Simpan kredensial biometrik untuk login cepat berikutnya
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('bio_email', email);
+          await prefs.setString('bio_key', base64.encode(dkBytes));
+
           if (mounted) {
+            _showToast('Login berhasil!', isError: false);
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -196,18 +247,13 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Autentikasi Gagal: $e')),
-      );
+      _showToast('Autentikasi Gagal: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Helper mengambil UUID dummy lewat API jika belum login
   Future<String?> _getUserIdByEmail(String email) async {
-    // Karena Supabase Auth tidak membolehkan query tabel user secara bebas demi keamanan,
-    // Di aplikasi nyata kita bisa memakai Postgres Function RPC atau tabel publik profile terpisah
     try {
       final res = await supabase.from('profiles').select('id').limit(1);
       if (res.isNotEmpty) return res.first['id'] as String;
@@ -224,7 +270,8 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.lock_person, size: 72, color: Color(0xFF1E3A8A)),
+              // Menggunakan icon app lock bawaan login
+              const Icon(Icons.lock_person, size: 80, color: Color(0xFF1E3A8A)),
               const SizedBox(height: 16),
               const Text(
                 'Vaulticor',
@@ -275,6 +322,14 @@ class _LoginPageState extends State<LoginPage> {
                               child: Text(_isRegisterMode ? 'Daftar Vault' : 'Masuk / Sync',
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
+                      if (!_isRegisterMode && _canCheckBiometrics) ...[
+                        const SizedBox(height: 16),
+                        IconButton(
+                          icon: const Icon(Icons.fingerprint, size: 48, color: Color(0xFF1E3A8A)),
+                          onPressed: _autoBiometricLogin,
+                        ),
+                        const Text('Masuk dengan Biometrik', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () {
@@ -315,6 +370,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final _passController = TextEditingController();
   List<EncryptedCredential> _credentialsList = [];
   bool _isFetching = false;
+  String _selectedCategoryFilter = 'Semua';
 
   final List<String> _popularServices = [
     'Google',
@@ -333,7 +389,6 @@ class _DashboardPageState extends State<DashboardPage> {
     _fetchPasswords();
   }
 
-  // Ambil Data Password Terenkripsi dari Database Supabase
   Future<void> _fetchPasswords() async {
     setState(() => _isFetching = true);
     try {
@@ -356,15 +411,24 @@ class _DashboardPageState extends State<DashboardPage> {
         }).toList();
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal sinkronisasi data: $e')),
-      );
+      _showToast('Gagal sinkronisasi data: $e');
     } finally {
       setState(() => _isFetching = false);
     }
   }
 
-  void _showAddDialog() {
+  void _showToast(String msg, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red[800] : Colors.green[800],
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // Tampilan penambahan baru dari BAWAH (BottomSheet)
+  void _showAddBottomSheet() {
     setState(() {
       _selectedTitle = 'Google';
       _isCustomTitle = false;
@@ -373,15 +437,30 @@ class _DashboardPageState extends State<DashboardPage> {
       _passController.clear();
     });
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Tambah Kredensial Baru', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
-          content: SingleChildScrollView(
+        builder: (context, setDialogState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            top: 20,
+            left: 20,
+            right: 20,
+          ),
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  'Tambah Kredensial Baru',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: _selectedTitle,
                   decoration: const InputDecoration(labelText: 'Pilih Layanan'),
@@ -432,17 +511,23 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _saveCredential,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white),
+                      child: const Text('Simpan & Sinkron'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-            ElevatedButton(
-              onPressed: _saveCredential,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white),
-              child: const Text('Simpan & Sinkron'),
-            ),
-          ],
         ),
       ),
     );
@@ -455,12 +540,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (title.isEmpty || user.isEmpty || pass.isEmpty) return;
 
-    // 1. Enkripsi data di sisi klien
     final encUser = await _cryptoService.encrypt(user, widget.dataKey);
     final encPass = await _cryptoService.encrypt(pass, widget.dataKey);
 
     try {
-      // 2. Kirim data terenkripsi ke database Supabase
       await supabase.from('passwords').insert({
         'user_id': supabase.auth.currentUser!.id,
         'title': title,
@@ -476,20 +559,19 @@ class _DashboardPageState extends State<DashboardPage> {
       _userController.clear();
       _passController.clear();
       
-      if (mounted) Navigator.pop(context);
-      _fetchPasswords(); // Segarkan daftar setelah menambah data
+      if (mounted) {
+        Navigator.pop(context);
+        _showToast('Sukses menyimpan data ke cloud!', isError: false);
+      }
+      _fetchPasswords();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e')),
-      );
+      _showToast('Gagal menyimpan: $e');
     }
   }
 
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Password disalin ke clipboard!')),
-    );
+    _showToast('Password disalin ke clipboard!', isError: false);
     Future.delayed(const Duration(seconds: 30), () {
       Clipboard.setData(const ClipboardData(text: ''));
     });
@@ -497,6 +579,13 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Ambil list unik kategori untuk filter di layar utama (kelompokkan per layanan)
+    final categories = ['Semua', ..._credentialsList.map((c) => c.title).toSet()];
+
+    final filteredList = _selectedCategoryFilter == 'Semua'
+        ? _credentialsList
+        : _credentialsList.where((c) => c.title == _selectedCategoryFilter).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vaulticor'),
@@ -513,7 +602,10 @@ class _DashboardPageState extends State<DashboardPage> {
             tooltip: 'Kunci Vault',
             onPressed: () async {
               await supabase.auth.signOut();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('bio_key'); // hapus cache biometrik
               if (mounted) {
+                _showToast('Brankas terkunci!', isError: false);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -525,74 +617,109 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: _isFetching
           ? const Center(child: CircularProgressIndicator())
-          : _credentialsList.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Brankas Anda masih kosong.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _credentialsList.length,
-                  itemBuilder: (context, index) {
-                    final item = _credentialsList[index];
-
-                    return FutureBuilder<Map<String, String>>(
-                      future: () async {
-                        final decUser = await _cryptoService.decrypt(
-                          ciphertext: item.encryptedUser,
-                          nonce: item.ivUser,
-                          mac: item.macUser,
-                          keyBytes: widget.dataKey,
-                        );
-                        final decPass = await _cryptoService.decrypt(
-                          ciphertext: item.encryptedPass,
-                          nonce: item.ivPass,
-                          mac: item.macPass,
-                          keyBytes: widget.dataKey,
-                        );
-                        return {'user': decUser, 'pass': decPass};
-                      }(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) {
-                          return const Card(
-                            margin: EdgeInsets.only(bottom: 12),
-                            child: ListTile(title: Text('Mendekripsi data...')),
-                          );
-                        }
-
-                        final data = snapshot.data!;
-                        return Card(
-                          elevation: 2,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF1E3A8A),
-                              foregroundColor: Colors.white,
-                              child: Text(item.title[0].toUpperCase()),
-                            ),
-                            title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(data['user']!),
-                                Text('••••••••', style: TextStyle(color: Colors.grey[600])),
-                              ],
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.copy, color: Color(0xFF1E3A8A)),
-                              onPressed: () => _copyToClipboard(data['pass']!),
-                            ),
+          : Column(
+              children: [
+                // Filter Kategori (Kelompokkan per layanan)
+                Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+                      final isSelected = category == _selectedCategoryFilter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(category),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedCategoryFilter = category;
+                            });
+                          },
+                          selectedColor: const Color(0xFF1E3A8A),
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
                           ),
-                        );
-                      },
-                    );
-                  },
+                        ),
+                      );
+                    },
+                  ),
                 ),
+                Expanded(
+                  child: filteredList.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Brankas Anda masih kosong.',
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredList[index];
+
+                            return FutureBuilder<Map<String, String>>(
+                              future: () async {
+                                final decUser = await _cryptoService.decrypt(
+                                  ciphertext: item.encryptedUser,
+                                  nonce: item.ivUser,
+                                  mac: item.macUser,
+                                  keyBytes: widget.dataKey,
+                                );
+                                final decPass = await _cryptoService.decrypt(
+                                  ciphertext: item.encryptedPass,
+                                  nonce: item.ivPass,
+                                  mac: item.macPass,
+                                  keyBytes: widget.dataKey,
+                                );
+                                return {'user': decUser, 'pass': decPass};
+                              }(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return const Card(
+                                    margin: EdgeInsets.only(bottom: 12),
+                                    child: ListTile(title: Text('Mendekripsi data...')),
+                                  );
+                                }
+
+                                final data = snapshot.data!;
+                                return Card(
+                                  elevation: 2,
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: const Color(0xFF1E3A8A),
+                                      foregroundColor: Colors.white,
+                                      child: Text(item.title[0].toUpperCase()),
+                                    ),
+                                    title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(data['user']!),
+                                        Text('••••••••', style: TextStyle(color: Colors.grey[600])),
+                                      ],
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.copy, color: Color(0xFF1E3A8A)),
+                                      onPressed: () => _copyToClipboard(data['pass']!),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
+        onPressed: _showAddBottomSheet,
         backgroundColor: const Color(0xFF1E3A8A),
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
