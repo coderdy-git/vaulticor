@@ -1,0 +1,48 @@
+name: Flutter Build APK
+
+# Memicu build otomatis setiap kali ada push ke branch 'main'
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout kode repositori Anda
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Java JDK 17 (Wajib untuk build Android)
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. Setup Flutter SDK stable versi terbaru
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # 4. Ambil dependency library pubspec.yaml
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 5. Compile aplikasi menjadi APK Release dengan menyuntikkan rahasia kredensial
+      - name: Build Release APK
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+
+      # 6. Unggah APK agar bisa diunduh oleh Anda
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vaulticor-APK
+          path: build/app/outputs/flutter-apk/app-release.apk

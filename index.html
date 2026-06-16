@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vaultify Web MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --card-sub: #f9fafb;
+            --accent-primary: #1e3a8a;
+            --accent-primary-hover: #1e40af;
+            --accent-success: #059669;
+            --accent-warning: #d97706;
+            --accent-danger: #dc2626;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 2rem 1rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+
+        header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 550px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary { background-color: var(--accent-primary); color: white; }
+        .btn-primary:hover { background-color: var(--accent-primary-hover); }
+        .btn-success { background-color: var(--accent-success); color: white; }
+        .btn-success:hover { background-color: #047857; }
+        .btn-danger { background-color: var(--accent-danger); color: white; }
+        .btn-danger:hover { background-color: #b91c1c; }
+        .btn-block { width: 100%; }
+
+        .vault-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.5rem 1rem;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .vault-status.locked {
+            background-color: rgba(220, 38, 38, 0.08);
+            color: var(--accent-danger);
+            border-color: rgba(220, 38, 38, 0.2);
+        }
+
+        .vault-status.unlocked {
+            background-color: rgba(5, 150, 105, 0.08);
+            color: var(--accent-success);
+            border-color: rgba(5, 150, 105, 0.2);
+        }
+
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* CREDENTIAL ITEM LIST */
+        .cred-list {
+            margin-top: 1rem;
+        }
+
+        .cred-item {
+            background-color: var(--card-sub);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .cred-item h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .cred-item p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .cred-pass-display {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        /* POPUP FOR RECOVERY KEY */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            z-index: 1000;
+        }
+
+        .mono-box {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            background-color: var(--card-sub);
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            color: #b45309;
+            word-break: break-all;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🔐 Vaultify Web MVP</h1>
+        <p>Aplikasi MVP nyata berbasis browser. Menggunakan Web Crypto API untuk enkripsi data lokal dan menyimpannya di LocalStorage.</p>
+    </header>
+
+    <div class="container">
+        
+        <!-- STATUS BAR -->
+        <div id="vaultStatus" class="vault-status locked">
+            <span id="statusIcon">🔒</span>
+            <span id="statusText">Vault Terkunci (RAM Bersih)</span>
+        </div>
+
+        <!-- 1. FORM REGISTER (Hanya muncul jika belum pernah daftar) -->
+        <div id="paneRegister" class="card tab-pane active">
+            <div class="card-title">Buat Vault Baru</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Buat Password Master untuk mengamankan brankas lokal Anda. Kami akan menghasilkan Kunci Pemulihan untuk keadaan darurat.
+            </p>
+            <div class="form-group">
+                <label>Password Master (Minimal 6 karakter)</label>
+                <input type="password" id="regPassword" class="form-control" value="SandiRahasia123!">
+            </div>
+            <button onclick="handleRegister()" class="btn btn-primary btn-block">Buat Vault Sekarang</button>
+        </div>
+
+        <!-- 2. FORM LOGIN (Muncul jika sudah pernah daftar) -->
+        <div id="paneLogin" class="card tab-pane">
+            <div class="card-title">Masuk ke Vault</div>
+            <div class="form-group">
+                <label>Password Master</label>
+                <input type="password" id="loginPassword" class="form-control" placeholder="Masukkan password master...">
+            </div>
+            <button onclick="handleLogin()" class="btn btn-success btn-block">Buka Kunci</button>
+            <div style="margin-top: 1rem; text-align: center;">
+                <a href="#" style="font-size: 0.8rem; color: var(--accent-primary);" onclick="switchToPane('paneRecovery')">Lupa password master?</a>
+            </div>
+        </div>
+
+        <!-- 3. PEMULIHAN AKUN (RECOVERY) -->
+        <div id="paneRecovery" class="card tab-pane">
+            <div class="card-title">Pemulihan Darurat</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Masukkan 24 kata kunci pemulihan untuk mengakses kembali dan menyetel ulang password master Anda.
+            </p>
+            <div class="form-group">
+                <label>24 Kata Kunci Pemulihan</label>
+                <textarea id="recoveryWords" class="form-control" rows="3" placeholder="Kata 1 Kata 2..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Password Master Baru</label>
+                <input type="password" id="newMasterPassword" class="form-control" placeholder="Password master baru">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="handleRecovery()" class="btn btn-primary" style="flex: 2;">Pulihkan Akun</button>
+                <button onclick="checkInitialState()" class="btn btn-danger" style="flex: 1;">Batal</button>
+            </div>
+        </div>
+
+        <!-- 4. VIEW DASHBOARD VAULT (Setelah sukses login) -->
+        <div id="paneDashboard" class="card tab-pane">
+            <div class="card-title">
+                <span>Brankas Saya</span>
+                <button onclick="lockVault()" class="btn btn-danger" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">Kunci</button>
+            </div>
+
+            <!-- Tambah Password Baru -->
+            <div style="background-color: var(--card-sub); border: 1px solid var(--border-color); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--accent-primary);">➕ Tambah Kredensial</h3>
+                <div class="form-group">
+                    <input type="text" id="addTitle" class="form-control" placeholder="Nama Layanan (Google, Facebook...)">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="addUsername" class="form-control" placeholder="Username / Email">
+                </div>
+                <div class="form-group">
+                    <div style="display: flex; gap: 6px;">
+                        <input type="text" id="addPassword" class="form-control" placeholder="Password">
+                        <button onclick="generateRandomPass()" class="btn btn-primary" style="padding: 0 0.75rem; font-size: 0.8rem;">Acak</button>
+                    </div>
+                </div>
+                <button onclick="saveCredential()" class="btn btn-success btn-block" style="font-size: 0.85rem;">Enkripsi & Simpan</button>
+            </div>
+
+            <!-- List Kredensial -->
+            <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem;">Daftar Password Tersimpan</h3>
+            <div id="credList" class="cred-list">
+                <!-- Di-render oleh JS -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- POPUP RECOVERY KEY SHOWCASE -->
+    <div id="recoveryPopup" class="popup-overlay">
+        <div class="card" style="max-width: 450px; width: 100%; border-color: var(--accent-warning);">
+            <div class="card-title" style="color: var(--accent-warning);">🚨 Simpan Kunci Pemulihan Ini!</div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Berikut adalah 24 kata pemulihan darurat Anda. **Jangan sampai hilang**. Kami tidak bisa memulihkan akun Anda jika Anda kehilangan kunci ini.
+            </p>
+            <div id="recoveryKeyArea" class="mono-box"></div>
+            <button onclick="closeRecoveryPopup()" class="btn btn-primary btn-block">Saya Sudah Menyimpannya</button>
+        </div>
+    </div>
+
+    <script>
+        let activeKeyBytes = null;
+        let activeCryptoKey = null;
+        const dummyRecoveryWords = "apple banana cherry date elderberry fig grape honeydew kiwi lemon mango nectarine orange papaya quince raspberry strawberry tangerine ugli voavanga water apple xigua yuzu zucchini";
+
+        function bufferToHex(buf) {
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function hexToBuffer(hex) {
+            const view = new Uint8Array(hex.length / 2);
+            for (let i = 0; i < view.length; i++) {
+                view[i] = parseInt(hex.substr(i * 2, 2), 16);
+            }
+            return view.buffer;
+        }
+
+        async function deriveKey(password, saltHex, iterations = 100000) {
+            const encoder = new TextEncoder();
+            const passwordBuffer = encoder.encode(password);
+            const saltBuffer = hexToBuffer(saltHex);
+
+            const baseKey = await window.crypto.subtle.importKey(
+                'raw', passwordBuffer, { name: 'PBKDF2' }, false, ['deriveKey']
+            );
+
+            const derivedKey = await window.crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: saltBuffer,
+                    iterations: iterations,
+                    hash: 'SHA-256'
+                },
+                baseKey,
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+
+            const exported = await window.crypto.subtle.exportKey('raw', derivedKey);
+            return { cryptoKey: derivedKey, hex: bufferToHex(exported) };
+        }
+
+        async function generateDataKey() {
+            const key = await window.crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+            );
+            const exported = await window.crypto.subtle.exportKey('raw', key);
+            return { cryptoKey: key, hex: bufferToHex(exported) };
+        }
+
+        async function encryptData(plaintext, cryptoKey) {
+            const encoder = new TextEncoder();
+            const dataBuffer = encoder.encode(plaintext);
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+            const ciphertextBuffer = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv }, cryptoKey, dataBuffer
+            );
+
+            return {
+                ciphertextHex: bufferToHex(ciphertextBuffer),
+                ivHex: bufferToHex(iv)
+            };
+        }
+
+        async function decryptData(ciphertextHex, ivHex, cryptoKey) {
+            const ciphertextBuffer = hexToBuffer(ciphertextHex);
+            const ivBuffer = hexToBuffer(ivHex);
+
+            const decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: ivBuffer }, cryptoKey, ciphertextBuffer
+            );
+
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedBuffer);
+        }
+
+        function switchToPane(paneId) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+            document.getElementById(paneId).classList.add('active');
+        }
+
+        function checkInitialState() {
+            const profile = localStorage.getItem('vault_profile');
+            if (profile) {
+                switchToPane('paneLogin');
+            } else {
+                switchToPane('paneRegister');
+            }
+        }
+
+        async function handleRegister() {
+            const pwd = document.getElementById('regPassword').value;
+            if (pwd.length < 6) return alert("Password minimal 6 karakter.");
+
+            const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+            const saltHex = bufferToHex(saltBytes);
+
+            const mk = await deriveKey(pwd, saltHex);
+            const dk = await generateDataKey();
+            const encDK = await encryptData(dk.hex, mk.cryptoKey);
+            const loginHash = await deriveKey(mk.hex, saltHex, 1000);
+
+            const rk = await deriveKey(dummyRecoveryWords, saltHex, 5000);
+            const encDKRecovery = await encryptData(dk.hex, rk.cryptoKey);
+
+            const profile = {
+                salt: saltHex,
+                encrypted_dk: encDK.ciphertextHex,
+                iv_dk: encDK.ivHex,
+                login_hash: loginHash.hex,
+                encrypted_dk_recovery: encDKRecovery.ciphertextHex,
+                iv_dk_recovery: encDKRecovery.ivHex
+            };
+
+            localStorage.setItem('vault_profile', JSON.stringify(profile));
+            localStorage.setItem('vault_passwords', JSON.stringify([]));
+
+            document.getElementById('recoveryKeyArea').textContent = dummyRecoveryWords;
+            document.getElementById('recoveryPopup').style.display = 'flex';
+        }
+
+        function closeRecoveryPopup() {
+            document.getElementById('recoveryPopup').style.display = 'none';
+            checkInitialState();
+        }
+
+        async function handleLogin() {
+            const pwd = document.getElementById('loginPassword').value;
+            const profileStr = localStorage.getItem('vault_profile');
+            if (!profileStr) return;
+
+            const profile = JSON.parse(profileStr);
+            const mk = await deriveKey(pwd, profile.salt);
+            const loginHash = await deriveKey(mk.hex, profile.salt, 1000);
+
+            if (loginHash.hex === profile.login_hash) {
+                try {
+                    const decryptedDKHex = await decryptData(profile.encrypted_dk, profile.iv_dk, mk.cryptoKey);
+                    
+                    activeKeyBytes = hexToBuffer(decryptedDKHex);
+                    activeCryptoKey = await window.crypto.subtle.importKey(
+                        'raw', activeKeyBytes, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
+                    );
+
+                    const status = document.getElementById('vaultStatus');
+                    status.className = "vault-status unlocked";
+                    document.getElementById('statusIcon').textContent = "🔓";
+                    document.getElementById('statusText').textContent = "Vault Terbuka (Kunci Aktif di RAM)";
+
+                    switchToPane('paneDashboard');
+                    renderCredentials();
+                } catch(e) {
+                    alert("Gagal memuat brankas: dekripsi kunci gagal.");
+                }
+            } else {
+                alert("Password Master Salah!");
+            }
+        }
+
+        async function handleRecovery() {
+            const words = document.getElementById('recoveryWords').value.trim();
+            const newPassword = document.getElementById('newMasterPassword').value;
+            
+            if (words !== dummyRecoveryWords) return alert("Kata pemulihan salah!");
+            if (newPassword.length < 6) return alert("Password baru minimal 6 karakter.");
+
+            const profileStr = localStorage.getItem('vault_profile');
+            const profile = JSON.parse(profileStr);
+
+            const rk = await deriveKey(words, profile.salt, 5000);
+
+            try {
+                const decryptedDKHex = await decryptData(profile.encrypted_dk_recovery, profile.iv_dk_recovery, rk.cryptoKey);
+                const newMK = await deriveKey(newPassword, profile.salt);
+                const newEncDK = await encryptData(decryptedDKHex, newMK.cryptoKey);
+                const newLoginHash = await deriveKey(newMK.hex, profile.salt, 1000);
+
+                profile.encrypted_dk = newEncDK.ciphertextHex;
+                profile.iv_dk = newEncDK.ivHex;
+                profile.login_hash = newLoginHash.hex;
+
+                localStorage.setItem('vault_profile', JSON.stringify(profile));
+                alert("Vault berhasil dipulihkan! Gunakan password master baru Anda.");
+                checkInitialState();
+            } catch(e) {
+                alert("Gagal memulihkan database.");
+            }
+        }
+
+        function lockVault() {
+            activeKeyBytes = null;
+            activeCryptoKey = null;
+
+            const status = document.getElementById('vaultStatus');
+            status.className = "vault-status locked";
+            document.getElementById('statusIcon').textContent = "🔒";
+            document.getElementById('statusText').textContent = "Vault Terkunci (RAM Bersih)";
+
+            document.getElementById('loginPassword').value = '';
+            checkInitialState();
+        }
+
+        function generateRandomPass() {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+            let pass = "";
+            for (let i = 0; i < 16; i++) {
+                pass += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('addPassword').value = pass;
+        }
+
+        async function saveCredential() {
+            const title = document.getElementById('addTitle').value;
+            const user = document.getElementById('addUsername').value;
+            const pass = document.getElementById('addPassword').value;
+
+            if (!title || !user || !pass) return alert("Lengkapi data!");
+
+            const encUser = await encryptData(user, activeCryptoKey);
+            const encPass = await encryptData(pass, activeCryptoKey);
+
+            const newItem = {
+                id: Math.random().toString(36).substr(2, 9),
+                title: title,
+                encrypted_user: encUser.ciphertextHex,
+                iv_user: encUser.ivHex,
+                encrypted_pass: encPass.ciphertextHex,
+                iv_pass: encPass.ivHex
+            };
+
+            const listStr = localStorage.getItem('vault_passwords') || "[]";
+            const list = JSON.parse(listStr);
+            list.push(newItem);
+            localStorage.setItem('vault_passwords', JSON.stringify(list));
+
+            document.getElementById('addTitle').value = '';
+            document.getElementById('addUsername').value = '';
+            document.getElementById('addPassword').value = '';
+
+            renderCredentials();
+        }
+
+        async function renderCredentials() {
+            const listStr = localStorage.getItem('vault_passwords') || "[]";
+            const list = JSON.parse(listStr);
+            const container = document.getElementById('credList');
+            container.innerHTML = '';
+
+            if (list.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-style: italic; font-size: 0.85rem; text-align: center;">Brankas kosong.</p>';
+                return;
+            }
+
+            for (const item of list) {
+                const decUser = await decryptData(item.encrypted_user, item.iv_user, activeCryptoKey);
+                const decPass = await decryptData(item.encrypted_pass, item.iv_pass, activeCryptoKey);
+
+                const div = document.createElement('div');
+                div.className = 'cred-item';
+                div.innerHTML = `
+                    <h4>${escapeHtml(item.title)}</h4>
+                    <p>${escapeHtml(decUser)}</p>
+                    <div class="cred-pass-display">
+                        <span>${escapeHtml(decPass)}</span>
+                        <button onclick="copyPassword('${escapeHtml(decPass)}', this)" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Salin</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        function copyPassword(text, btn) {
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = btn.textContent;
+                btn.textContent = "Copied! (30s)";
+                btn.style.background = "var(--accent-success)";
+                setTimeout(() => {
+                    navigator.clipboard.writeText("");
+                    btn.textContent = orig;
+                    btn.style.background = "";
+                }, 30000);
+            });
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        checkInitialState();
+    </script>
+</body>
+</html>
