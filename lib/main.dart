@@ -99,10 +99,14 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _checkBiometricAvailability() async {
     try {
-      final isAvailable = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
-      setState(() => _canCheckBiometrics = isAvailable);
-      if (isAvailable) {
-        _autoBiometricLogin();
+      final isAvailable = await _localAuth.canCheckBiometrics;
+      final isDeviceSupported = await _localAuth.isDeviceSupported();
+      setState(() => _canCheckBiometrics = isAvailable && isDeviceSupported);
+      if (isAvailable && isDeviceSupported) {
+        // Berikan delay sedikit agar proses inisialisasi state selesai
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _autoBiometricLogin();
+        });
       }
     } catch (_) {}
   }

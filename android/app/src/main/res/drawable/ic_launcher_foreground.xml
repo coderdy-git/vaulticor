@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    width="108dp"
+    height="108dp"
+    viewportWidth="108"
+    viewportHeight="108">
+    <!-- Latar belakang lingkaran biru corporate -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M54,54m-45,0a45,45 0,1 1,90 0a45,45 0,1 1,-90 0"/>
+    <!-- Ikon Gembok Putih -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30c-6.6,0 -12,5.4 -12,12l0,6c-2.2,0 -4,1.8 -4,4l0,22c0,2.2 1.8,4 4,4l24,0c2.2,0 4,-1.8 4,-4l0,-22c0,-2.2 -1.8,-4 -4,-4l0,-6c0,-6.6 -5.4,-12 -12,-12zm0,6c3.3,0 6,2.7 6,6l0,6l-12,0l0,-6c0,-3.3 2.7,-6 6,-6zM54,58c2.2,0 4,1.8 4,4c0,1.5 -0.8,2.8 -2,3.5l0,5.5c0,1.1 -0.9,2 -2,2s-2,-0.9 -2,-2l0,-5.5c-1.2,-0.7 -2,-2 -2,-3.5c0,-2.2 1.8,-4 4,-4z"/>
+</vector>

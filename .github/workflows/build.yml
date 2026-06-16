@@ -44,12 +44,19 @@ jobs:
       - name: Rename APK File
         run: mv build/app/outputs/flutter-apk/app-release.apk Vaulticor-${{ github.ref_name }}.apk
 
-      # 7. Membuat GitHub Release otomatis dan mengunggah berkas APK
+      # 7. Membuat GitHub Release otomatis dan mengunggah berkas APK dengan Changelog dinamis
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: Vaulticor-${{ github.ref_name }}.apk
           draft: false
           prerelease: false
+          body: |
+            ## 📝 Catatan Rilis / Changelog (${{ github.ref_name }})
+            
+            *   Pembaruan ikon aplikasi & penamaan rilis menjadi **Vaulticor**.
+            *   Perbaikan stabilitas modul autentikasi biometrik lokal.
+            *   Optimasi visual form input model bottom-sheet dan filter pengelompokan.
+            *   Perbaikan izin konektivitas internet Android.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
