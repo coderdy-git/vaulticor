@@ -54,9 +54,9 @@ jobs:
           body: |
             ## 📝 Catatan Rilis / Changelog (${{ github.ref_name }})
             
-            *   Pembaruan ikon aplikasi & penamaan rilis menjadi **Vaulticor**.
-            *   Perbaikan stabilitas modul autentikasi biometrik lokal.
-            *   Optimasi visual form input model bottom-sheet dan filter pengelompokan.
-            *   Perbaikan izin konektivitas internet Android.
+            *   **Tampilan Baru**: Memindahkan panel detail dari bottom sheet modal ke halaman baru `CredentialDetailPage`.
+            *   **Field Nama Kredensial**: Menambahkan input field "Nama" di halaman detail (default otomatis mengikuti nama layanan/provider).
+            *   **Pembaruan & Riwayat Password**: Menambahkan fitur update password beserta enkripsi penyimpanan riwayat password lama dan tampilan tanggal perubahan.
+            *   **Pembersihan Generator**: Menghapus tombol password generator acak ("Acak") pada halaman tambah kredensial.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
