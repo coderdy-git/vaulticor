@@ -1,6 +1,7 @@
 -- 1. Buat Tabel Profiles (Menyimpan Salt & Data Key Terenkripsi Klien)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  email text UNIQUE,
   client_salt text NOT NULL,
   encrypted_data_key text NOT NULL,
   iv_dk text NOT NULL,

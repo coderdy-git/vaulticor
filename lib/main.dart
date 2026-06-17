@@ -116,8 +116,9 @@ class _LoginPageState extends State<LoginPage> {
     final prefs = await SharedPreferences.getInstance();
     final savedEmail = prefs.getString('bio_email');
     final savedKeyHex = prefs.getString('bio_key');
+    final savedLoginHash = prefs.getString('bio_login_hash');
 
-    if (savedEmail != null && savedKeyHex != null) {
+    if (savedEmail != null && savedKeyHex != null && savedLoginHash != null) {
       try {
         final didAuthenticate = await _localAuth.authenticate(
           localizedReason: 'Pindai sidik jari atau wajah untuk membuka Vaulticor',
@@ -125,6 +126,13 @@ class _LoginPageState extends State<LoginPage> {
 
         if (didAuthenticate) {
           setState(() => _isLoading = true);
+          
+          // Sign in ke Supabase agar session aktif sehingga RLS mengizinkan fetch data
+          await supabase.auth.signInWithPassword(
+            email: savedEmail,
+            password: savedLoginHash,
+          );
+
           final List<int> dkBytes = base64.decode(savedKeyHex);
           if (mounted) {
             _showToast('Buka brankas biometrik sukses!', isError: false);
@@ -139,7 +147,9 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         _showToast('Gagal autentikasi biometrik: $e');
       } finally {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     } else {
       _showToast('Aktifkan biometrik dengan masuk menggunakan Password Master terlebih dahulu.', isError: true);
@@ -188,6 +198,7 @@ class _LoginPageState extends State<LoginPage> {
         if (authResponse.user != null) {
           await supabase.from('profiles').insert({
             'id': authResponse.user!.id,
+            'email': email,
             'client_salt': saltHex,
             'encrypted_data_key': encDK['ciphertext'],
             'iv_dk': encDK['nonce'],
@@ -201,10 +212,11 @@ class _LoginPageState extends State<LoginPage> {
         }
       } else {
         // --- LOGIN MODE ---
+        // Mencari profile langsung menggunakan email
         final List<dynamic> profiles = await supabase
             .from('profiles')
             .select('client_salt, encrypted_data_key, iv_dk, mac_dk')
-            .eq('id', (await _getUserIdByEmail(email)) ?? '');
+            .eq('email', email);
 
         if (profiles.isEmpty) {
           throw Exception("Pengguna tidak terdaftar.");
@@ -240,6 +252,7 @@ class _LoginPageState extends State<LoginPage> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('bio_email', email);
           await prefs.setString('bio_key', base64.encode(dkBytes));
+          await prefs.setString('bio_login_hash', loginHash);
 
           if (mounted) {
             _showToast('Login berhasil!', isError: false);
@@ -262,14 +275,6 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<String?> _getUserIdByEmail(String email) async {
-    try {
-      final res = await supabase.from('profiles').select('id').limit(1);
-      if (res.isNotEmpty) return res.first['id'] as String;
-    } catch (_) {}
-    return null;
   }
 
   @override
